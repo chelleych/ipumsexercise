@@ -1,34 +1,93 @@
 Questions:
     1. For the first record in 1870, “Catherine Beebe”, find the best match in 1880. Doing this manually by searching through the data is fine.
         a. What is the best match?
-          
+                                          id         SERIAL   NAMEFRST NAMELAST  AGE  SEX  BPL
+        f7946b71-ff8a-441b-a37f-e086d6a6a048  1283321554552  CATHERINE   BEEBE   54    2   10
 
         b. How did you find the best match?
-
+        Find all exact matches in the 1880 data for NAMELAST=='BEEBE' and NAMEFRST=='CATHERINE'
+        See answers.py: line 108
 
     2. Do the same for the second and third records, “Frances E Bird” and “J S Luff”.
         a. What are the best matches for these records?
-        b. How did you find these best matches?
+        Frances E Bird:
+                                          id         SERIAL   NAMEFRST NAMELAST     AGE  SEX  BPL
+        9f638d67-3533-4886-9e2e-f9f6e87ca771  9996965884791  FANNIE E.     BIRD      50    2   10
+        J S Luff:
+        id         SERIAL   NAMEFRST NAMELAST     AGE  SEX  BPL
+        2a675d10-ed1e-4f73-bce9-76e2e4b3924a    50315869645      J. S.     BIRD      60    1   10
 
+
+        b. How did you find these best matches?
+        No exact match existed.
+        Manually look at a short list of last name matches to see what kind of discrepancies.
+        Sometimes a first name was a nickname.
+        For “J S Luff”, both “J. S. LUFF" and “JAMES LUFF" could have been matches, but “J. S. LUFF" was more likely because he was the correct age
 
     3. Write a program (or function) which does the following: Given one record from 1870 and the entire 1880 dataset, return the best matched record in 1880. Run the program on the same first 3 records above and verify that it gives the correct results.
         a. Give a general overview of your program.
-        b. What is the criteria that you used to determine a best match?
+        The function match_record loops through every record in the 1880 census end returns the record with the greatest score. This calls score_matches to rate the similarity between the two records.
+        The function for determining matches is designed to be independent for each record so it can be parallelized.
 
+        b. What is the criteria that you used to determine a best match?
+        The function score_matches creates a score that is higher for a closer match. The matches are rated with these criteria, in order of importance:
+        NAMELAST : Jaro-Winkler score
+        NAMEFIRST : Jaro-Winkler score
+        BPL : exact match
+        SEX : exact match
+        AGE : match 1870 record to 1880 record minus 10, give or take 1 year
+        SERIAL : exact match
+
+        Exact matches are all or nothing, where anything but a perfect match is a 0.
+        Each component of the above criteria are weighted in terms of importance and summed to give the final score.
+
+        Reasoning behind the weights (importance of each column):
+        Names are the most identifying feature, so they should by far have the largest weight.
+        NAMEFIRST is slightly less important than NAMELAST because a first name could be a nickname, and if marriage causes a last name to change it is unlikely to be similar, anyway.
+        Birthplace (BPL) and sex are unlikely to change.
+        Age would be different by about 10 years, allowing estimation mistakes.
+        The household (SERIAL) is the most likely to change between censuses.
+
+        Obstacles:
+        The Jaro-Winkler function could not handle NaN values, which are floats and not strings. The function score_matches was modified to check for NaN missing values and tread them as empty strings.
 
     4. Now input the 4th 1870 record into the program, “John Smith”.
         a. What happens?
+        Row 4 in the 1870 data:
+                                          id   SERIAL NAMEFRST NAMELAST  AGE  SEX  BPL
+        cddd9455-48e0-4b48-89a5-9ee315e00087  1237122     John    Smith   26    1   10
 
+        The following single row is matched in 1880:
+        id                                         SERIAL NAMEFRST NAMELAST  AGE  SEX  BPL
+        06377154-eea4-4211-bf10-fe548d9a964f  11197809046     JOHN    SMITH   35    1   10
+
+        Though I did not check thoroughly, there are some entries that could be matches, like "JONATHAN SMITH" and "JOHN T. SMITH", which are not considered as closely as all the "JOHN SMITH" matches.
+        More logic could be added to account for this.
 
     5. Modify your program to return the top 3 best matches and rerun the 4th 1870 record, “John Smith”. You can decide what criteria determines how good a specific match is, but make sure that the top match for the first 3 records remains the same.
-        a. How did you modify your program?
-        b. What criteria did you use to order the best matches?
+        Return values:
+                                          id        SERIAL NAMEFRST NAMELAST  AGE  SEX  BPL
+        06377154-eea4-4211-bf10-fe548d9a964f   11197809046     JOHN    SMITH   35    1   10
+        7bc11728-3602-4e9d-a887-1d7566bae0f9    3097809046  JOHN B.    SMITH   37    1   10
+        ce92d407-a416-4d1a-bb54-5c73538a9388  965583643712  JOHN B.    SMITH   35    1   10
 
+        a. How did you modify your program?
+        The match_record was copied to match_record_top3, except the index of the top 3 scores was used instead of the index of the max score
+
+        b. What criteria did you use to order the best matches?
+        The same criteria as in problem 4.
 
     6. Run your program on all 1,000 1870 records and record the runtime. Save the best match for each 1870 record out to a csv file, where one column is the id of the 1870 record and one column is the id of the 1880 record. If it takes a long time to run, stop the program after 10 minutes, but make sure to get a partial output.
         a. What is the run time total? What is the run time per 1870 record?
+        The code processed 18 records in about 10 minutes. This is 0.6 minutes per 1870 record.
         b. What would happen to the run time if you doubled the size of the 1880 file and why?
+        It would take twice as much time because there are the same number of 1870 records and each of those would take twice the time to search the 1880 records.
         c. Where are the performance bottlenecks?
+        It must search the entire 1880 list
         d. How could you modify the program to run faster as a single thread/process (i.e. without parallelizing it)?
+        A shorter 1880 list could be searched by first matching the columns that are unlikely to change, like sex or birthplace, then running the more costly scoring function on this shortened list.
         e. How could you go about parallelizing it?
+        Each score is independent of the other rows. Each 1870 record could be a separate process, which could distribute the scoring function to a different process for each 1880 record and gathering the scores to find the final max score.
         f. What techniques could you explore to get better matches?
+        The middle initial in NAMEFRST could be ignored if it is unavailable in either the 1870 record or the 1880 record.
+        The algorithm lowers scores when a record is missing a value, when perhaps it should use the average for that category. For example, a missing value in "SEX" adds 0 to the score as it is now, but it could add the average "SEX" score over all 1880 records. This way, a missing value would not punish so harshly.

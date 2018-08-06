@@ -1,6 +1,8 @@
 
 """
-
+    Michelle Henry's answers to the IPUMS Exercises.
+    
+    
     There are two files that you will receive:
 
     1) “1870_CT.csv” This file lists the first 1000 people who was enumerated in the 1870 census and listed a birthplace of Connecticut.
